@@ -73,7 +73,14 @@ const ENDPOINT = '/api/spare'
 const columns = ["领用单号", "备件名称", "备件规格", "领用数量", "领用班组", "领用日期", "所属场站", "领用状态"]
 const actions = ["批准领用", "确认发放", "退回备件"]
 const statuses = ["待审批", "已批准", "已领用", "已退回"]
-const stats = [{"label": "待审批领用", "value": 0}, {"label": "本月领用单", "value": 0}, {"label": "退回单数", "value": 0}]
+
+type StatCard = { label: string; value: number }
+
+const stats = ref<StatCard[]>([
+  { label: '待审批领用', value: 0 },
+  { label: '领用单总数', value: 0 },
+  { label: '退回单数', value: 0 },
+])
 
 const rows = ref<Row[]>([])
 const total = ref(0)
@@ -99,7 +106,7 @@ async function runAction(action: string, row: Row) {
   try {
     const response = await request(`${ENDPOINT}/${row.id}/actions`, {
       method: 'POST',
-      body: JSON.stringify({ action }),
+      body: JSON.stringify({ values: { action } }),
     })
     if (!response.ok) {
       throw new Error('备件领用动作未生效，请稍后重试')
@@ -107,6 +114,19 @@ async function runAction(action: string, row: Row) {
     await reload()
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '备件领用操作失败'
+  }
+}
+
+async function reloadSummary() {
+  try {
+    const response = await request(`${ENDPOINT}/summary`)
+    if (!response.ok) {
+      throw new Error('备件领用汇总卡片读取失败')
+    }
+    const payload = await response.json()
+    stats.value = payload.cards ?? stats.value
+  } catch {
+    // 汇总卡片读取失败时保留旧值，列表的错误信息由 reload 统一提示
   }
 }
 
@@ -124,6 +144,7 @@ async function reload() {
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '备件领用列表读取失败'
   }
+  void reloadSummary()
 }
 
 onMounted(reload)
